@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the accompanying article."
+title: "QuakeReturnPeriods: NFFT and Lomb-Scargle estimation of earthquake return periods"
+authors:
+  - family-names: Heednacram
+    given-names: Apichat
+    affiliation: "College of Computing, Prince of Songkla University, Phuket, Thailand"
+  - family-names: Kliangsuwan
+    given-names: Thitinan
+    affiliation: "College of Computing, Prince of Songkla University, Phuket, Thailand"
+  - family-names: Boonsat
+    given-names: Nititorn
+    affiliation: "College of Computing, Prince of Songkla University, Phuket, Thailand"
+license: MIT
+repository-code: "https://github.com/thitinan-kl/quake-return-periods"
+url: "https://quake-return-periods.vercel.app/"
+version: "1.0.0"
+date-released: 2026-09-02

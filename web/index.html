@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Earthquake Return Periods — NFFT & LSP Worldwide</title>
+<meta name="description" content="Interactive map of earthquake return periods for 28 countries across seven major tectonic plates, estimated with the Non-Uniform Fast Fourier Transform (NFFT) and Lomb–Scargle Periodogram (LSP).">
+<link rel="stylesheet" href="leaflet.min.css">
+<script src="leaflet.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1720; --panel:#16212e; --panel2:#1c2a3a; --ink:#e8eef5; --mut:#93a4b5;
+    --line:#28394c; --acc:#5ba3e0; --warn:#e0885b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);display:flex;flex-direction:column}
+  header{padding:14px 20px 10px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{font-size:1.05rem;font-weight:600;letter-spacing:.2px}
+  header p{font-size:.78rem;color:var(--mut);margin-top:2px}
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{background:transparent;color:var(--mut);border:0;padding:6px 11px;font-size:.8rem;cursor:pointer;white-space:nowrap}
+  .seg button.on{background:var(--acc);color:#08131e;font-weight:600}
+  .lbl{font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
+  .legend{display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--mut);margin-left:auto}
+  .legend .sw{width:14px;height:14px;border-radius:50%;display:inline-block}
+  #wrap{flex:1;display:flex;min-height:0}
+  #map{flex:1}
+  .leaflet-container{background:#0b111a}
+  #side{width:390px;max-width:45vw;background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:16px 18px;display:none}
+  #side.open{display:block}
+  #side h2{font-size:1rem;margin-bottom:2px}
+  #side .plate{font-size:.75rem;color:var(--acc);margin-bottom:10px}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 14px}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px}
+  .stat b{display:block;font-size:.95rem}
+  .stat span{font-size:.65rem;color:var(--mut)}
+  table{width:100%;border-collapse:collapse;font-size:.75rem;margin-bottom:14px}
+  th,td{border:1px solid var(--line);padding:4px 6px;text-align:center}
+  th{background:var(--panel2);color:var(--mut);font-weight:600}
+  td.na{color:#4a5a6b}
+  .cap{font-size:.72rem;color:var(--mut);margin:0 0 4px}
+  .close{float:right;background:none;border:0;color:var(--mut);font-size:1.1rem;cursor:pointer}
+  footer{padding:8px 20px;font-size:.68rem;color:var(--mut);border-top:1px solid var(--line);background:var(--panel)}
+  footer a{color:var(--acc);text-decoration:none}
+  .tt{font-size:.78rem}
+  .tt b{font-size:.85rem}
+  @media (max-width:720px){ #side{position:absolute;right:0;top:0;bottom:0;z-index:1000;max-width:85vw} }
+
+  .seg.multi button.on{background:var(--panel2);color:var(--ink);font-weight:600;box-shadow:inset 0 0 0 1px var(--acc)}
+  .seg button .dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:0}
+  .seg button:not(.on) .dot{opacity:.35}
+  select#countrySel{-webkit-appearance:none;-moz-appearance:none;appearance:none;background:var(--panel2) url("data:image/svg+xml;charset=utf8,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2710%27 height=%276%27%3E%3Cpath d=%27M0 0l5 6 5-6z%27 fill=%27%2393a4b5%27/%3E%3C/svg%3E") no-repeat right 10px center;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 26px 6px 10px;font-size:.8rem;max-width:230px}
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel2);color:var(--ink);box-shadow:0 3px 14px rgba(0,0,0,.5)}
+  .leaflet-popup-content{font-size:.78rem;line-height:1.5}
+  .clmut{color:var(--mut)}
+  @media (max-width:640px){ .controls{gap:8px;padding:8px 12px} .legend{margin-left:0;width:100%} #side{max-width:100vw;width:100vw} }
+  .platelbl{color:#b4aef2;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    white-space:nowrap;transform:translate(-50%,-50%);text-shadow:0 1px 4px rgba(0,0,0,.9);opacity:.85;pointer-events:none}
+
+  /* ===== mobile fixes (2026-07-26) ===== */
+  #wrap{position:relative}
+
+  /* พื้นที่สัมผัส 44px: ใช้กับทุกอุปกรณ์ที่ควบคุมด้วยนิ้ว รวมแท็บเล็ตที่กว้างเกิน 720px */
+  @media (pointer:coarse){
+    .seg button{padding:11px 14px;min-height:44px}
+    select#countrySel{padding:11px 28px 11px 12px;min-height:44px;font-size:.85rem}
+    .leaflet-control-zoom a{width:44px!important;height:44px!important;line-height:42px!important;font-size:22px!important}
+    #side .close{font-size:1.5rem;line-height:1;padding:8px 10px;margin:-6px -6px 0 0;
+                 min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
+    footer a{display:inline-block;padding:10px 4px;margin:-10px 0}
+  }
+
+  @media (max-width:720px){
+    /* แถบปุ่มที่ยาวเกินจอ: เลื่อนซ้าย-ขวาได้ แทนที่จะถูกตัดทิ้ง */
+    .seg{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;max-width:100%;
+         scrollbar-width:none;scroll-snap-type:x proximity}
+    .seg::-webkit-scrollbar{display:none}
+    .seg button{scroll-snap-align:start}
+    .controls>.seg{position:relative}
+    /* เงาบอกใบ้ว่ายังมีปุ่มต่อทางขวา */
+    .segwrap{position:relative;display:block;max-width:100%}
+    .segwrap::after{content:'';position:absolute;top:1px;bottom:1px;right:1px;width:26px;border-radius:0 8px 8px 0;
+      background:linear-gradient(90deg,rgba(22,33,46,0),var(--panel));pointer-events:none;opacity:1;transition:opacity .2s}
+    .segwrap.at-end::after{opacity:0}
+
+    /* พื้นที่สัมผัสอย่างน้อย 44px (สำรองไว้เผื่อเบราว์เซอร์ไม่รองรับ pointer:coarse) */
+    .seg button{padding:11px 14px;min-height:44px}
+    select#countrySel{padding:11px 28px 11px 12px;min-height:44px;font-size:.85rem}
+    .leaflet-control-zoom a{width:44px!important;height:44px!important;line-height:42px!important;font-size:22px!important}
+
+    /* แผงข้อมูลเปิดใต้แถบควบคุม ไม่บังหัวเรื่องและปุ่มอีกต่อไป */
+    #side{position:absolute;top:0;right:0;bottom:0;left:auto;z-index:1000;width:100%;max-width:100%}
+    #side .close{font-size:1.5rem;line-height:1;padding:8px 10px;margin:-6px -6px 0 0;
+                 min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
+    /* บนแท็บเล็ตแนวนอนที่กว้างเกิน 720px แถบยังไม่ล้น จึงไม่ต้องเลื่อน */
+  }
+
+  @media (max-width:640px){
+    #side{width:100%;max-width:100%}
+    /* คืนพื้นที่ให้แผนที่บนจอเล็ก */
+    header{padding:10px 14px 8px}
+    header p{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    footer{max-height:4.4em;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  }
+
+  /* ===== lazy load: ตัวบอกสถานะกำลังโหลด ===== */
+  #loadspin{width:16px;height:16px;flex:none;border:2px solid var(--line);border-top-color:var(--acc);
+    border-radius:50%;display:none;animation:spin .7s linear infinite}
+  body.loading #loadspin{display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){ #loadspin{animation-duration:2s} }
+  select#countrySel[disabled]{opacity:.55}
+  #toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,14px);z-index:2000;
+    max-width:min(92vw,430px);background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+    border-radius:10px;padding:11px 15px;font-size:.82rem;line-height:1.5;
+    box-shadow:0 6px 22px rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Worldwide Earthquake Return Period Estimation</h1>
+  <p>Non-Uniform Fast Fourier Transform (NFFT) and Lomb–Scargle Periodogram (LSP) applied to declustered USGS catalogs (1900–2026) — 28 countries, seven major tectonic plates</p>
+</header>
+<div class="controls">
+  <span class="lbl">Method</span>
+  <div class="seg" id="segMethod">
+    <button data-v="nfft" class="on">NFFT</button><button data-v="lsp">LSP</button>
+  </div>
+  <span class="lbl">Magnitude</span>
+  <div class="seg" id="segMag">
+    <button data-v="M4" class="on">M4+</button><button data-v="M5">M5+</button><button data-v="M6">M6+</button><button data-v="M7">M7+</button><button data-v="M8">M8+</button>
+  </div>
+  <span class="lbl">Show / hide</span>
+  <span class="segwrap" id="segLayersWrap"><div class="seg multi" id="segLayers">
+    <button data-v="rp" class="on">Return periods</button>
+    <button data-v="c1" class="on"><span class="dot" style="background:#3987e5"></span>C1</button>
+    <button data-v="c2" class="on"><span class="dot" style="background:#d95926"></span>C2</button>
+    <button data-v="c3" class="on"><span class="dot" style="background:#199e70"></span>C3</button>
+    <button data-v="hull" class="on">Hulls</button>
+    <button data-v="plate" class="on"><span class="dot" style="background:#9085e9"></span>Plates</button>
+  </div></span>
+  <span style="display:flex;gap:10px;align-items:center;flex-wrap:nowrap">
+    <span class="lbl">Focus</span>
+    <select id="countrySel"><option value="__ALL__">🌍 All countries</option></select>
+    <span id="loadspin" aria-hidden="true"></span>
+  </span>
+  <div class="legend" id="legend"></div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="wrap">
+  <div id="map"></div>
+  <aside id="side"></aside>
+</div>
+<footer>
+  Estimates from: Heednacram, A. &amp; Kliangsuwan, T. (2026), “Evaluating Earthquake Return Period Reliability Across Seismic Scales Using NFFT and LSP Algorithms”. Data source: <a href="https://earthquake.usgs.gov" target="_blank" rel="noopener">USGS</a>. Return period = mean estimated interval between events of at least the selected magnitude within each spatial cluster (blank where no spectral peak could be resolved).
+</footer>
+<script src="data.js"></script>
+<script src="clusters-core.js"></script>
+<script>
+const state={method:'nfft',mag:'M4'};
+const map=L.map('map',{preferCanvas:true,worldCopyJump:true,minZoom:2}).setView([15,20],2);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+  attribution:'&copy; OpenStreetMap contributors &copy; CARTO',subdomains:'abcd',maxZoom:10}).addTo(map);
+map.createPane('plates');   map.getPane('plates').style.zIndex = 390;
+map.createPane('hulls');    map.getPane('hulls').style.zIndex = 395;
+map.createPane('clpts');    map.getPane('clpts').style.zIndex = 400;
+map.createPane('rppts');    map.getPane('rppts').style.zIndex = 450;
+const rPlates = L.canvas({pane:'plates'});
+const rHulls  = L.canvas({pane:'hulls'});
+const rClpts  = L.canvas({pane:'clpts'});
+const rRppts  = L.canvas({pane:'rppts'});
+
+function bestVal(c){ // min return period across clusters for current method+mag
+  const rows=c[state.method]||[]; let v=null;
+  rows.forEach(r=>{const x=parseFloat(r[state.mag]); if(!isNaN(x)&&(v===null||x<v)) v=x;});
+  return v;
+}
+function color(v){
+  if(v===null) return '#5b6a7a';
+  if(v<1.5) return '#d84b3f';
+  if(v<2.5) return '#e0885b';
+  if(v<4)   return '#e3c95c';
+  if(v<8)   return '#7fb069';
+  return '#5ba3e0';
+}
+function radius(v){ if(v===null) return 6; return Math.max(7,Math.min(10,7+3/v*2)); }
+
+let layer=L.layerGroup().addTo(map);
+function fmt(x){return x==null?'–':x}
+function cellRow(r){
+  return `<tr><td>${r.cluster}</td><td class="${r.M4?'':'na'}">${fmt(r.M4)}</td><td class="${r.M5?'':'na'}">${fmt(r.M5)}</td><td class="${r.M6?'':'na'}">${fmt(r.M6)}</td><td class="${r.M7?'':'na'}">${fmt(r.M7)}</td><td class="${r.M8?'':'na'}">${fmt(r.M8)}</td></tr>`;
+}
+function openSide(c){
+  const s=document.getElementById('side');
+  const rec=c.records||{}, ms=c.mainshock||{};
+  s.innerHTML=`
+    <button class="close" onclick="document.getElementById('side').classList.remove('open')">✕</button>
+    <h2>${c.name}</h2><div class="plate">${c.plate||''}</div>
+    <div class="stats">
+      <div class="stat"><b>${ms.raw??rec.total??'–'}</b><span>Raw records (M ≥ 4)</span></div>
+      <div class="stat"><b>${ms.mainshock??'–'}</b><span>Main shocks</span></div>
+      <div class="stat"><b>${rec.recentMag??'–'}</b><span>Recent magnitude (Mw)</span></div>
+    </div>
+    <p class="cap">NFFT — estimated return period (years) per cluster</p>
+    <table><tr><th>Cluster</th><th>M4+</th><th>M5+</th><th>M6+</th><th>M7+</th><th>M8+</th></tr>
+      ${(c.nfft||[]).map(cellRow).join('')||'<tr><td colspan="6" class="na">no result</td></tr>'}</table>
+    <p class="cap">LSP — estimated return period (years) per cluster</p>
+    <table><tr><th>Cluster</th><th>M4+</th><th>M5+</th><th>M6+</th><th>M7+</th><th>M8+</th></tr>
+      ${(c.lsp||[]).map(cellRow).join('')||'<tr><td colspan="6" class="na">no result</td></tr>'}</table>
+    <p class="cap">Last record in catalog: ${rec.last??'–'}</p>`;
+  s.classList.add('open');
+}
+function redraw(){
+  layer.clearLayers();
+  DATA.countries.forEach(c=>{
+    if(!c.coord) return;
+    const v=bestVal(c);
+    const m=L.circleMarker(c.coord,{renderer:rRppts, pane:'rppts',radius:radius(v),color:'#0b111a',weight:1,
+      fillColor:color(v),fillOpacity:.92});
+    m.bindTooltip(`<div class="tt"><b>${c.name}</b><br>${state.method.toUpperCase()} ${state.mag.replace('M','M ')}+ return period: <b>${v===null?'n/a':v+' yr'}</b><br><i>click for details</i></div>`);
+    m.on('click',ev=>{ if (ev.originalEvent) ev.originalEvent._layerHit = true; openSide(c); });
+    m.addTo(layer);
+  });
+  document.getElementById('legend').innerHTML=
+    `<span class="sw" style="background:#d84b3f"></span>&lt;1.5 yr
+     <span class="sw" style="background:#e0885b"></span>1.5–2.5
+     <span class="sw" style="background:#e3c95c"></span>2.5–4
+     <span class="sw" style="background:#7fb069"></span>4–8
+     <span class="sw" style="background:#5ba3e0"></span>&ge;8 yr
+     <span class="sw" style="background:#5b6a7a"></span>n/a`;
+}
+document.querySelectorAll('.seg:not(.multi)').forEach(seg=>{
+  seg.addEventListener('click',e=>{
+    if(e.target.tagName!=='BUTTON')return;
+    seg.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+    e.target.classList.add('on');
+    if(seg.id==='segMethod') state.method=e.target.dataset.v; else state.mag=e.target.dataset.v;
+    redraw();
+  });
+});
+redraw();
+</script>
+
+<script>
+/* ================= seismic clusters overlay (same page, toggleable) ================= */
+const CL_COLORS = {1:'#3987e5', 2:'#d95926', 3:'#199e70'};
+
+/* ===== lazy load =====
+   clusters-core.js มี hull + สถิติ + จุดภาพรวมโลกแบบลดความละเอียด (CLOVER)
+   จุดครบความละเอียดของแต่ละประเทศอยู่ใน pts/<slug>.json โหลดเมื่อผู้ใช้เลือกประเทศ */
+const CLDATA = CLCORE;              /* โครงสร้างเดิมทุกอย่างยกเว้น pts */
+const CLPTS  = {};                  /* แคชจุดรายประเทศที่โหลดมาแล้ว */
+function ptsOf(cn, k){ const d = CLPTS[cn]; return (d && d[k]) || []; }
+
+let _loading = 0;
+function setLoading(on){
+  _loading = Math.max(0, _loading + (on ? 1 : -1));
+  const busy = _loading > 0;
+  document.body.classList.toggle('loading', busy);
+  const sel = document.getElementById('countrySel');
+  if (sel) sel.disabled = busy;
+}
+let _toastT = null;
+function toast(msg, ms){
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(()=>el.classList.remove('show'), ms || 5000);
+}
+async function ensurePts(cn){
+  if (CLPTS[cn]) return true;
+  const slug = CLFILE[cn];
+  if (!slug) return false;
+  if (location.protocol === 'file:'){
+    toast('ต้องเปิดหน้านี้ผ่านเว็บเซิร์ฟเวอร์ (http) จึงจะโหลดข้อมูลรายประเทศได้ — เปิดจากไฟล์โดยตรงเบราว์เซอร์จะบล็อก');
+    return false;
+  }
+  setLoading(true);
+  try{
+    const r = await fetch('pts/' + slug + '.json', {cache:'force-cache'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    CLPTS[cn] = await r.json();
+    return true;
+  }catch(err){
+    console.error('โหลดข้อมูลประเทศไม่สำเร็จ:', cn, err);
+    toast('โหลดข้อมูลของ ' + cn + ' ไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง');
+    return false;
+  }finally{ setLoading(false); }
+}
+const NAME_ALIAS = {'Dominican':'Dominican Republic'};
+const layerState = {rp:true, c1:true, c2:true, c3:true, hull:true, plate:true, focus:'__ALL__'};
+
+
+/* fast canvas dot layer for the global overview (132k pts) */
+const QuakeDots = L.Layer.extend({
+  initialize(){ this._data = []; },
+  onAdd(map){
+    this._map = map;
+    this._canvas = L.DomUtil.create('canvas', 'leaflet-layer');
+    this._canvas.style.pointerEvents = 'none';
+    map.getPane('clpts').appendChild(this._canvas);
+    map.on('moveend zoomend resize', this._reset, this);
+    this._reset();
+  },
+  onRemove(map){
+    L.DomUtil.remove(this._canvas);
+    map.off('moveend zoomend resize', this._reset, this);
+  },
+  setData(d){ this._data = d; if (this._map) this._reset(); },
+  _reset(){
+    const map = this._map, size = map.getSize(), dpr = window.devicePixelRatio || 1;
+    const topLeft = map.containerPointToLayerPoint([0,0]);
+    L.DomUtil.setPosition(this._canvas, topLeft);
+    this._canvas.width = size.x * dpr; this._canvas.height = size.y * dpr;
+    this._canvas.style.width = size.x + 'px'; this._canvas.style.height = size.y + 'px';
+    const ctx = this._canvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,size.x,size.y);
+    ctx.globalAlpha = .75; ctx.lineWidth = .4; ctx.strokeStyle = '#0b111a';
+    const b = map.getBounds(), w = b.getEast()-b.getWest();
+    for (const [lat,lng,mag,col] of this._data){
+      for (let off=-360; off<=360; off+=360){
+        const L2 = lng+off;
+        if (L2 < b.getWest()-2 || L2 > b.getEast()+2) continue;
+        const pt = map.latLngToContainerPoint([lat, L2]);
+        const r = Math.max(1.6, 1.3*(mag-3.4));
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, 6.2832);
+        ctx.fillStyle = col; ctx.fill(); ctx.stroke();
+      }
+    }
+  }
+});
+const quakeDots = new QuakeDots();
+quakeDots.addTo(map);
+function platePopup(pr){
+  const groupLabel = (PLABELS.find(l=>l[3]===pr.no)||[pr.name])[0];
+  const avg = PAVG[groupLabel];
+  let h = `<b>${pr.label || pr.name+' (part of '+groupLabel+')'}</b><br>`+
+          `<span class="clmut">Tectonic plate no. ${pr.no} in this study</span>`;
+  if (avg){
+    h += `<br><span class="clmut">Avg return period (yrs):</span>`+
+         `<table style="border-collapse:collapse;font-size:.72rem;margin-top:3px">`+
+         `<tr><th></th>${['M4+','M5+','M6+','M7+','M8+'].map(m=>`<th style="padding:1px 6px;color:var(--mut)">${m}</th>`).join('')}</tr>`+
+         ['NFFT','LSP'].map(meth=>{
+           const r = avg[meth]||{};
+           return `<tr><td style="padding:1px 6px;font-weight:600">${meth}</td>`+
+             ['M4','M5','M6','M7','M8'].map(k=>`<td style="padding:1px 6px;text-align:center">${r[k]??'–'}</td>`).join('')+`</tr>`;
+         }).join('')+`</table>`;
+  }
+  return h;
+}
+const clPts = L.layerGroup().addTo(map);
+const clHulls = L.layerGroup().addTo(map);
+const clPlates = L.layerGroup().addTo(map);
+[[0],[360],[-360]].forEach(([off])=>{
+  PLATES.features.forEach(f=>{                     /* all boundaries — dim reference lines */
+    L.polyline(f.geometry.coordinates.map(c=>[c[1], c[0]+off]),
+      {renderer:rPlates, pane:'plates', color:'#4a5a6b', weight:1, opacity:.55, dashArray:'4 4', interactive:false}).addTo(clPlates);
+  });
+  SPLATES.features.forEach(f=>{                    /* the seven studied plates — highlighted */
+    const geos = f.geometry.type==='Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+    geos.forEach(poly=>{
+      L.polygon(poly.map(ring=>ring.map(c=>[c[1], c[0]+off])),
+        {renderer:rPlates, pane:'plates', color:'#9085e9', weight:1.8, opacity:.9,
+         fillColor:'#9085e9', fillOpacity:.05})
+        .bindPopup(platePopup(f.properties))
+        .on('click', ev=>{ if (ev.originalEvent) ev.originalEvent._layerHit = true; })
+        .addTo(clPlates);
+    });
+  });
+});
+[[0],[360]].forEach(([off])=>{                     /* plate name labels */
+  PLABELS.forEach(([label, lat, lon, no])=>{
+    L.marker([lat, lon+off], {pane:'plates', interactive:false, icon:L.divIcon({
+      className:'', iconSize:null,
+      html:`<div class="platelbl">${label}</div>`})}).addTo(clPlates);
+  });
+});
+
+/* Plate-click fallback: the stacked canvas panes (hulls/clpts/rppts) sit above the
+   plates pane and intercept clicks before they reach the plate polygons, so the
+   polygons' own popups never open. Handle plate clicks at the map level instead,
+   with a point-in-polygon test against SPLATES. */
+function pointInRing(lat, lng, ring){                 /* ray casting; ring = [[lng,lat],...] */
+  let inside = false;
+  for (let i=0, j=ring.length-1; i<ring.length; j=i++){
+    const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1];
+    if (((yi>lat)!==(yj>lat)) && (lng < (xj-xi)*(lat-yi)/(yj-yi)+xi)) inside = !inside;
+  }
+  return inside;
+}
+function plateAt(latlng){
+  let lng = latlng.lng;
+  while (lng > 180) lng -= 360;                       /* normalize world copies */
+  while (lng < -180) lng += 360;
+  for (const f of SPLATES.features){
+    const geos = f.geometry.type==='Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+    for (const poly of geos){
+      if (pointInRing(latlng.lat, lng, poly[0]) && !poly.slice(1).some(h=>pointInRing(latlng.lat, lng, h))) return f;
+    }
+  }
+  return null;
+}
+map.on('click', e=>{
+  if (!layerState.plate) return;
+  if (e.originalEvent && e.originalEvent._layerHit) return;   /* a marker/hull/polygon already took this click */
+  const f = plateAt(e.latlng);
+  if (f) L.popup().setLatLng(e.latlng).setContent(platePopup(f.properties)).openOn(map);
+});
+
+function magR(m){ return Math.max(1.8, 1.3*(m-3.4)); }
+function clPopup(country,k,p){
+  return `<b style="color:${CL_COLORS[k]}">■</b> <b>${country}</b> · Cluster ${k}`+
+    `<br>Magnitude <b>${p[2].toFixed(1)}</b> · Year <b>${p[3]}</b>`+
+    `<br><span class="clmut">${p[0].toFixed(3)}, ${(p[1]>180?p[1]-360:p[1]).toFixed(3)}</span>`;
+}
+
+function redrawClusters(fit){
+  clPts.clearLayers(); clHulls.clearLayers();
+  const dotData = [];
+  const global = layerState.focus==='__ALL__';
+  const names = global ? Object.keys(CLDATA) : [layerState.focus];
+  const bounds = [];
+  names.forEach(cn=>{
+    const cc = CLDATA[cn].clusters;
+    [1,2,3].forEach(k=>{
+      const cd = cc[k]; if(!cd || !layerState['c'+k]) return;
+      const col = CL_COLORS[k];
+      if (cd.hull && cd.hull.length>2){
+        [-360,0,360].forEach(off=>{
+          L.polygon(cd.hull.map(v=>[v[0], v[1]+off]),{renderer:rHulls, pane:'hulls', color:col, weight:1.6, opacity:.85, fillColor:col, fillOpacity:.06})
+            .bindPopup(`<b style="color:${col}">■</b> <b>${cn}</b> · Cluster ${k}`+
+              `<br>${cd.n.toLocaleString()} events · M ${cd.magMin}–${cd.magMax}<br>${cd.y0}–${cd.y1}`)
+            .on('click', ev=>{ if (ev.originalEvent) ev.originalEvent._layerHit = true; })
+            .addTo(clHulls);
+        });
+      }
+      if (!global){
+        const pts = ptsOf(cn, k);
+        const offs = pts.some(p=>p[1]>180) ? [0,-360] : [0];   /* dateline-crossing countries get a canonical copy */
+        pts.forEach(p=>{
+          offs.forEach(off=>{
+            L.circleMarker([p[0],p[1]+off],{renderer:rClpts, pane:'clpts', radius:magR(p[2]),
+              color:'#0b111a', weight:.4, fillColor:col, fillOpacity:.75})
+              .bindPopup(clPopup(cn,k,p))
+              .on('click', ev=>{ if (ev.originalEvent) ev.originalEvent._layerHit = true; })
+              .addTo(clPts);
+          });
+        });
+        pts.forEach(p=>bounds.push([p[0],p[1]]));
+      }
+    });
+  });
+  /* ภาพรวมโลกใช้ชุดจุดที่ลดความละเอียดแล้ว — 11% ของจุดทั้งหมด แต่ที่ zoom ต่ำแยกด้วยตาไม่ออก */
+  if (global){
+    for (const p of CLOVER) if (layerState['c'+p[3]]) dotData.push([p[0], p[1], p[2], CL_COLORS[p[3]]]);
+  }
+  quakeDots.setData(dotData);
+  if (fit && bounds.length) map.fitBounds(bounds,{padding:[30,30]});
+}
+function applyLayers(){
+  const anyCl = layerState.c1||layerState.c2||layerState.c3;
+  layerState.rp    ? layer.addTo(map)    : map.removeLayer(layer);
+  anyCl            ? (clPts.addTo(map), quakeDots.addTo(map)) : (map.removeLayer(clPts), map.removeLayer(quakeDots));
+  layerState.hull  ? clHulls.addTo(map)  : map.removeLayer(clHulls);
+  layerState.plate ? clPlates.addTo(map) : map.removeLayer(clPlates);
+}
+document.getElementById('segLayers').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  const k = b.dataset.v;
+  layerState[k] = !layerState[k];
+  b.classList.toggle('on', layerState[k]);
+  if (k==='c1'||k==='c2'||k==='c3') redrawClusters(false);
+  applyLayers();
+});
+const selC = document.getElementById('countrySel');
+Object.keys(CLDATA).sort().forEach(cn=>selC.appendChild(new Option(cn, cn)));
+selC.addEventListener('change', async ()=>{
+  const v = selC.value;
+  if (v !== '__ALL__'){
+    const ok = await ensurePts(v);          /* โหลดจุดของประเทศนั้นก่อนวาด */
+    if (!ok){ selC.value = layerState.focus; return; }   /* โหลดไม่ได้ → คืนค่าเดิม */
+  }
+  layerState.focus = v;
+  redrawClusters(true);
+  if (v==='__ALL__'){ map.setView([15,20],2); }
+  else {
+    const dn = NAME_ALIAS[v] || v;
+    const c = DATA.countries.find(x=>x.name===dn);
+    if (c) openSide(c);
+  }
+});
+redrawClusters(false);
+applyLayers();
+</script>
+
+<script>
+/* scroll hint for the horizontally scrollable Show/hide bar on narrow screens */
+(function(){
+  var seg=document.getElementById('segLayers'), wrap=document.getElementById('segLayersWrap');
+  if(!seg||!wrap) return;
+  function sync(){
+    var scrollable = seg.scrollWidth > seg.clientWidth + 1;
+    var atEnd = !scrollable || seg.scrollLeft + seg.clientWidth >= seg.scrollWidth - 2;
+    wrap.classList.toggle('at-end', atEnd);
+  }
+  seg.addEventListener('scroll', sync, {passive:true});
+  window.addEventListener('resize', sync);
+  sync();
+})();
+</script>
+</body>
+</html>

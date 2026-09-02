@@ -1,0 +1,17 @@
+# Local data and run artefacts (regenerate with the pipeline)
+code/Dataset/
+code/graphs/
+code/train/
+code/test/
+code/result/
+code/LSP/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
