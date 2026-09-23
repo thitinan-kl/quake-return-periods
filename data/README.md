@@ -34,6 +34,21 @@ pipeline can be started at step 3 with no network access. It is used by
 [`../docs/TUTORIAL.md`](../docs/TUTORIAL.md) to reproduce the Colombia cluster 3 spectra
 (Figures 7 and 8 of the article).
 
+## Clustered catalogues (`clustering/`)
+
+`clustering/clustered_earthquakes_<country>.csv` — 28 files, about 31 MB in total — is the
+output of `code/3_build_clusters_no_noise.py` for the run reported in the article: the
+declustered catalogue of each country with a `cluster` label from DBSCAN.
+
+These are committed on purpose. Steps 1 to 3 are reproducible in principle but not
+bit-for-bit across machines, because DBSCAN assigns a border point reachable from two cores
+according to processing order, so a few events can land in a different cluster under a
+different operating system or library version. Copy this folder to `code/Dataset/clustering/`
+and run step 4 to reproduce every cell of Tables 5 to 9 exactly.
+
+Columns are those of the preprocessed catalogue (`time`, `latitude`, `longitude`, `depth`,
+`mag`, `magType`, `place`, `Date`, `Day_Number`, `country`) plus `cluster`.
+
 ## Reference outputs
 
 `../results/` holds the output files behind the tables and figures of the article, so the
