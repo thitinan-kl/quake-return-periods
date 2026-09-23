@@ -12,10 +12,10 @@ numbers can be checked without re-running the whole pipeline. All of them come f
 | **Table 6** — LSP return periods per country and cluster | `LSP-M<m>.csv`, collated in `Table6-LSP.xlsx` | Column `return_p_years` |
 | **Table 7** — average return period per tectonic plate | `Table7-Table8.xlsx`, sheet `Table 7` | Averages of the per-cluster values across the countries on each plate |
 | **Table 8** — alignment of the proposed methods with the statistical measures | `Table7-Table8.xlsx`, sheet `Table 8` | |
-| **Table 9** — out-of-sample evaluation (80/20, three metrics) | not stored here | Re-run with `use_split = True`; see `docs/USER_GUIDE.md` |
+| **Table 9** — out-of-sample evaluation (80/20, three metrics) | not stored here | Re-run with `use_split = True`, which writes `NFFT_validate_M<m>.csv`, `LSP_validate_M<m>.csv` and `statistics_validate_M<m>.csv`; the three metrics are aggregated from the pooled `error_days` column of those files. The statistical row is chosen by the comment toggle in `predict_and_error()` (mean, mode or median), so that part needs one run each. See `docs/USER_GUIDE.md` |
 | statistical mean / mode / median baselines | `statistics-M<m>.csv` | Columns `mean_gap`, `exact_mode`, `median_gap`, converted to years in `return_P` |
 | **Figures 7 and 8** — example NFFT and LSP spectra | not stored here | Written to `graphs/` at run time; `docs/TUTORIAL.md` reproduces the Colombia cluster 3 pair |
-| **Figures 9 and 10** | derived from the CSV files above | Estimated return period by method and threshold, and the average difference between the proposed estimators and the statistical measures |
+| **Figures 9, 10 and 11** | derived from `Table7-Table8.xlsx` | Plate-averaged return period of each spectral estimator divided by the statistical mean, mode and median respectively |
 
 The `.xlsx` files keep live formulas (`VLOOKUP`, `AVERAGE`) that pull from the per-threshold
 sheets, so the collated tables recompute if the underlying sheets are replaced.
@@ -34,11 +34,15 @@ sheets, so the collated tables recompute if the underlying sheets are replaced.
 (gap columns are in days)
 
 An empty cell means the algorithm found no dominant spectral peak for that cluster and
-magnitude threshold. This is why the M7+ and M8+ tables are sparser than M4+, and why the
-NFFT has no M8+ row at all while the LSP does.
+magnitude threshold. This is why the M7+ and M8+ tables are sparser than M4+: 67 clusters
+yield an M4+ estimate, 60 an M5+, 39 an M6+ (40 for the LSP), 13 an M7+ (14 for the LSP)
+and only two an M8+ — Chile cluster 1 and Indonesia cluster 1, for both methods.
 
 ## Reproducing
 
-The catalogue is fetched live from the USGS, so a rerun today may differ slightly from these
-files if the catalogue has been revised since. See the repository `README.md` for the
-parameter values used.
+Copy `../data/clustering/` to `code/Dataset/clustering/` and run
+`code/4_statistics_NFFT_LSP.py`: every value in these files is reproduced exactly, with the
+pinned versions in `requirements.txt`. Going further back — re-fetching the catalogue and
+re-running steps 1 to 3 — may differ slightly, both because the USGS catalogue is revised
+over time and because DBSCAN border points are assigned by processing order. See the
+repository `README.md`.
