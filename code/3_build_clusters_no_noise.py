@@ -12,11 +12,11 @@ def recount_day_number(data):
         if cluster_id == -1:
             continue
         cluster_mask = data['cluster'] == cluster_id
-        cluster_data = data[cluster_mask].copy().sort_values('time')
+        cluster_data = data[cluster_mask].copy().sort_values('time', kind='mergesort')
         oldest_date = cluster_data['time'].min().date()
         day_numbers = [(d.date() - oldest_date).days for d in cluster_data['time']]
         data.loc[cluster_mask, 'Day_Number'] = day_numbers
-    data = data.sort_values(['cluster', 'time']).reset_index(drop=True)
+    data = data.sort_values(['cluster', 'time'], kind='mergesort').reset_index(drop=True)
     return data
 
 def haversine_distance(lat1, lon1, lat2, lon2):
@@ -36,7 +36,7 @@ def remove_aftershocks(data, aftershock_days=180):
     
     # 1. Initialize and clean the dataset
     cluster_data = data.copy().reset_index(drop=True)
-    cluster_data = cluster_data.sort_values('Day_Number').reset_index(drop=True)
+    cluster_data = cluster_data.sort_values('Day_Number', kind='mergesort').reset_index(drop=True)
 
     print(f"Total records in dataset: {len(cluster_data)}")
     print(f"Last records: {cluster_data['Date'].tail(1)}")
@@ -59,7 +59,7 @@ def remove_aftershocks(data, aftershock_days=180):
         
         if len(interval_data) > 0:
             # FIX: Sort by magnitude descending to evaluate largest events first
-            sorted_interval = interval_data.sort_values('mag', ascending=False)
+            sorted_interval = interval_data.sort_values('mag', ascending=False, kind='mergesort')
             
             interval_maxima = []
             for _, row in sorted_interval.iterrows():
@@ -206,7 +206,13 @@ for idx, selected_country in enumerate(countries, 1):
     
     # Find the top 3 clusters by size
     cluster_counts = valid_clusters['cluster'].value_counts()
-    top_clusters = cluster_counts.head(3).index.tolist()
+    # Deterministic tie-break: larger cluster first, then the lower DBSCAN label.
+    # value_counts() leaves the order of equal counts undefined, which made the
+    # choice of the third cluster depend on the platform.
+    top_clusters = (cluster_counts.rename_axis('cluster').reset_index(name='_n')
+                    .sort_values(['_n', 'cluster'], ascending=[False, True],
+                                 kind='mergesort')
+                    .head(3)['cluster'].tolist())
     
     # Count top 3 cluster size before relabeling
     top3_size = len(valid_clusters[valid_clusters['cluster'].isin(top_clusters)])

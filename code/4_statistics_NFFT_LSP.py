@@ -6,13 +6,55 @@ from scipy import stats
 from datetime import timedelta #, datetime
 #nofrom shapely.geometry import Point
 import os
-from nfft import nfft
+from nfft import nfft_adjoint
 from scipy.signal import find_peaks
 from astropy.timeseries import LombScargle
 
 # =============================================================================
 # Functions
 # =============================================================================
+
+# --- Error registry ---------------------------------------------------------
+# The exception handlers below print and continue, so a systematic failure can
+# run to completion unnoticed: a wrong function call once raised 183 times here
+# and the affected output file was simply never written. Every caught exception
+# is now also recorded, and report_errors() prints a summary at the end of the
+# run. Set STRICT_ERRORS = True to stop on the first one instead.
+STRICT_ERRORS = False
+CAUGHT_ERRORS = []
+
+
+def record_error(stage, context, exc):
+    """Record a caught exception; re-raise it when STRICT_ERRORS is set."""
+    CAUGHT_ERRORS.append({
+        "stage": stage,
+        "context": context,
+        "type": type(exc).__name__,
+        "message": str(exc),
+    })
+    print(f"[ERROR] {stage} | {context} | {type(exc).__name__}: {exc}")
+    if STRICT_ERRORS:
+        raise exc
+
+
+def report_errors():
+    """Print a summary of every exception caught during the run."""
+    print("\n" + "=" * 70)
+    if not CAUGHT_ERRORS:
+        print("ERROR SUMMARY: no exception was caught during this run.")
+        print("=" * 70)
+        return
+    print(f"ERROR SUMMARY: {len(CAUGHT_ERRORS)} exception(s) were caught and skipped.")
+    print("The results are INCOMPLETE for the clusters listed below.")
+    counts = {}
+    for err in CAUGHT_ERRORS:
+        key = (err["stage"], err["type"], err["message"])
+        counts[key] = counts.get(key, 0) + 1
+    for (stage, etype, message), n in sorted(counts.items(), key=lambda kv: -kv[1]):
+        print(f"  {n:5d}  {stage}: {etype}: {message}")
+    print("=" * 70)
+
+
 
 def recount_day_number(data):
     data['time'] = pd.to_datetime(data['time'], format='mixed', errors='coerce')
@@ -29,7 +71,7 @@ def recount_day_number(data):
             continue
         cluster_mask = data['cluster'] == cluster_id
         cluster_data = data[cluster_mask].copy()
-        cluster_data = cluster_data.sort_values('time')
+        cluster_data = cluster_data.sort_values('time', kind='mergesort')
         
         if len(cluster_data) == 0:
             continue
@@ -48,7 +90,7 @@ def recount_day_number(data):
             day_diff = (current_date - oldest_date).days
             data.loc[idx, 'Day_Number'] = day_diff
             
-    data = data.sort_values(['cluster', 'time']).reset_index(drop=True)
+    data = data.sort_values(['cluster', 'time'], kind='mergesort').reset_index(drop=True)
     #print("Day_Number column recounted successfully after smoothing!")
     #print(f"Updated {len(data)} records across {len(data['cluster'].unique())} clusters")
     #print(data[['time', 'cluster', 'Day_Number', 'mag']].head(10))
@@ -60,7 +102,7 @@ def remove_aftershocks(data, aftershock_days=180):
     
     for cluster_id, cluster_data in data.groupby('cluster'):
         cluster_data = cluster_data.copy().reset_index(drop=True)
-        cluster_data = cluster_data.sort_values('Day_Number').reset_index(drop=True)
+        cluster_data = cluster_data.sort_values('Day_Number', kind='mergesort').reset_index(drop=True)
         
         #print(f"\n--- Cluster {cluster_id} ---")
         #print(f"Total records in cluster: {len(cluster_data)}")
@@ -155,7 +197,7 @@ def split_clusters_80_20(data):
             continue
         
         cluster_data = data[data['cluster'] == cluster_id].copy()
-        cluster_data = cluster_data.sort_values('time').reset_index(drop=True)
+        cluster_data = cluster_data.sort_values('time', kind='mergesort').reset_index(drop=True)
         
         print(f"Cluster {cluster_id}: {len(cluster_data)} records")
         
@@ -218,7 +260,7 @@ def predict_and_error(train_data, test_data):
 
         cluster_test = test_data[test_data['cluster'] == cluster_id].copy()
         cluster_test['time'] = pd.to_datetime(cluster_test['time']).dt.date
-        cluster_test = cluster_test.sort_values('time').reset_index(drop=True)
+        cluster_test = cluster_test.sort_values('time', kind='mergesort').reset_index(drop=True)
 
         if cluster_test.empty:
             print("  No test data for this cluster")
@@ -256,7 +298,7 @@ def predict_and_error(train_data, test_data):
             'return_period_days': return_period_days,
             'predictions': len(errors),
             'average_error_days': avg_error,
-            'average_error_years': round(avg_error / 365, 3) if avg_error is not None else None,
+            'average_error_years': round(avg_error /365.25, 3) if avg_error is not None else None,
         })
 
     return pd.DataFrame(results), pd.DataFrame(summary)
@@ -268,7 +310,7 @@ def plot_time_series(cluster_data, cluster, country):
         fig, ax = plt.subplots(figsize=(10, 6))
         
         # Sort data by Day_Number to ensure proper line connections
-        sorted_data = cluster_data.sort_values('Day_Number')
+        sorted_data = cluster_data.sort_values('Day_Number', kind='mergesort')
         
         # Plot with connected lines and points
         ax.plot(sorted_data['Day_Number'], sorted_data['mag'], 
@@ -284,7 +326,7 @@ def plot_time_series(cluster_data, cluster, country):
         fig.savefig(f'./graphs/{country}_cluster_{cluster}_time_series.png')
         plt.close(fig)
     except Exception as e:
-        print(f"Error plotting time series: {e}")
+        record_error("plot_time_series", f"{country} cluster {cluster}", e)
 
 class Datavalue:
     """Class to store peak analysis data"""
@@ -317,7 +359,7 @@ def predict_and_error_nfftlsp(train_data, test_data, return_period):
 
         cluster_test = test_data[test_data['cluster'] == cluster_id].copy()
         cluster_test['time'] = pd.to_datetime(cluster_test['time']).dt.date
-        cluster_test = cluster_test.sort_values('time').reset_index(drop=True)
+        cluster_test = cluster_test.sort_values('time', kind='mergesort').reset_index(drop=True)
 
         if cluster_test.empty:
             print("  No test data for this cluster")
@@ -354,7 +396,7 @@ def predict_and_error_nfftlsp(train_data, test_data, return_period):
             'cluster': cluster_id,
             'return_period': return_period,
             'predictions': len(errors),
-            'average_error_days': round(avg_error/365,2)
+            'average_error_days': (round(avg_error/365.25, 2) if avg_error is not None else None)
         })
 
     return pd.DataFrame(results), pd.DataFrame(summary)
@@ -582,7 +624,7 @@ def run_NFFT (countries, min_magnitude, use_split):
                 continue
                 
             # Sort the data by time from low to high
-            analysis_data = analysis_data.sort_values(by='Day_Number').reset_index(drop=True)
+            analysis_data = analysis_data.sort_values(by='Day_Number', kind='mergesort').reset_index(drop=True)
             
             y = analysis_data['mag'].to_numpy()
             N = len(y)
@@ -614,15 +656,27 @@ def run_NFFT (countries, min_magnitude, use_split):
                 num_day = 1  # Avoid division by zero
                 
             # Set frequency bounds
-            if avg_gap >= 365*2.5: #540
-                lower_bound = (N//2)*0.10 
-                upper_bound = (N//2)*0.40
-            elif(avg_gap >= 365):
-                lower_bound = (N//2)*0.40
-                upper_bound = (N//2)*0.60
-            else:
-                lower_bound = (N//2)*0.60
-                upper_bound = (N//2)*0.90
+            # if avg_gap >= 365*2.0: #540
+            #     lower_bound = (N//2)*0.10 
+            #     upper_bound = (N//2)*0.40
+            # elif(avg_gap >= 365):
+            #     lower_bound = (N//2)*0.40
+            #     upper_bound = (N//2)*0.60
+            # else:
+            #     lower_bound = (N//2)*0.60
+            #     upper_bound = (N//2)*0.90
+            
+           # Period search window, converted to the NFFT frequency index.
+           # A peak at index k corresponds to a period of
+           # num_day / (0.4999 * k) days, the same convention used when the
+           # return period is computed further down.
+            _gaps = np.diff(np.sort(analysis_data['Day_Number'].to_numpy(dtype=float)))
+            _gaps = _gaps[_gaps > 0]
+            P_MIN_DAYS = 2.0 * np.median(_gaps) if _gaps.size else 1.0
+            P_MAX_DAYS = num_day / 3.0
+ 
+            lower_bound = num_day / (0.4999 * P_MAX_DAYS)
+            upper_bound = num_day / (0.4999 * P_MIN_DAYS)
                 
             x = analysis_data['Day_Number'].to_numpy()
             print(f"Data points: {len(x)}, Time span: {num_day} days")
@@ -657,18 +711,33 @@ def run_NFFT (countries, min_magnitude, use_split):
             # Perform NFFT
             try:
                 xf = np.fft.fftfreq(N, 1.0 / N)
-                if len(y) % 2 == 0:
-                    yf = np.abs(nfft(x_nom[:N], y, sigma=5))
-                else:
-                    yf = np.abs(nfft(x_nom[:N], y[:-1], sigma=5))
-                    
-                amp = 1.0 / N * yf
-                peaks, _ = find_peaks(amp[:int(N // 2)], distance=3, prominence=0.01, height=0.01)
+                # if len(y) % 2 == 0:
+                #     yf = np.abs(nfft(x_nom[:N], y, sigma=5))
+                # else:
+                #     yf = np.abs(nfft(x_nom[:N], y[:-1], sigma=5))
                 
-                print(f"Found {len(peaks)} peaks")
-                
+                # nfft_adjoint turns the samples into a spectrum; nfft() runs the
+                # transform the other way and returns values at the nodes.
+                y_centred = y - np.mean(y)          # remove the mean magnitude first
+ 
+                # Compute enough frequencies to cover the search window above.
+                # The nodes occupy 0.4999 of the unit axis, so the cycle count
+                # of interest reaches about upper_bound.
+                N_FREQ = 2 * (int(np.ceil(upper_bound)) + 1)
+                N_FREQ = max(N_FREQ, 2 * (N // 2))
+                k_all = np.arange(-N_FREQ // 2, N_FREQ // 2)
+                spec = np.abs(nfft_adjoint(np.asarray(x_nom, dtype=float),
+                                           y_centred, N_FREQ, sigma=5))
+ 
+                # keep the positive half; index i then corresponds to k = i + 1,
+                # so xf[peak] is the cycle count the rest of the code expects
+                _pos = k_all > 0
+                xf = k_all[_pos].astype(float)
+                amp = spec[_pos] / N
+                peaks, _ = find_peaks(amp, distance=3, prominence=0.01, height=0.01)
+
             except Exception as e:
-                print(f"Error in NFFT calculation: {e}")
+                record_error("NFFT spectrum", f"{country} cluster {cluster_id}", e)
                 cluster_peaks = {
              "country": country,
              "cluster": cluster_id,
@@ -701,7 +770,8 @@ def run_NFFT (countries, min_magnitude, use_split):
             
             # Create frequency plot
             fig, ax = plt.subplots(figsize=(10, 6))
-            ax.plot(xf[:int(N // 2)], amp[:int(N // 2)], color='red', linewidth=1)
+            #ax.plot(xf[:int(N // 2)], amp[:int(N // 2)], color='red', linewidth=1)
+            ax.plot(xf, amp, color='red', linewidth=1)
             ax.axvspan(xmin=0, xmax=lower_bound, color="yellow", alpha=0.3, label="Low freq")
             ax.axvspan(xmin=lower_bound, xmax=upper_bound, color="green", alpha=0.3, label="Target freq")
             ax.axvspan(xmin=upper_bound, xmax=len(xf) // 2, color="red", alpha=0.3, label="High freq")
@@ -744,9 +814,10 @@ def run_NFFT (countries, min_magnitude, use_split):
                 cluster_peaks["highest_years_not_normalised"] = highest_peak_years
 
                 # Calculate return period
-                nomes = (highest_peak_frequency / (N // 2)) * 100 if (N // 2) > 0 else 0
+                #nomes = (highest_peak_frequency / (N // 2)) * 100 if (N // 2) > 0 else 0
+                nomes = highest_peak_frequency * 0.4999
                 if nomes > 0:
-                    return_P_nomes = (num_day / nomes) / 365
+                    return_P_nomes = (num_day / nomes) / 365.25
                 else:
                     return_P_nomes = None
 
@@ -755,7 +826,7 @@ def run_NFFT (countries, min_magnitude, use_split):
 
                 # Convert return_P_nomes (years) → days for prediction
                 if return_P_nomes is not None:
-                    period_days = return_P_nomes * 365.0
+                    period_days = return_P_nomes * 365.25
                 else:
                     period_days = 0.0
 
@@ -780,7 +851,7 @@ def run_NFFT (countries, min_magnitude, use_split):
                     all_prediction_results.append(prediction_results)
                     all_prediction_summaries.append(prediction_summary)
                 except Exception as e:
-                    print(f"Error during prediction for {country} cluster {cluster_id}: {e}")
+                    record_error("NFFT validation", f"{country} cluster {cluster_id}", e)
             elif not use_split:
                 print(f"  Skipping validation for {country} cluster {cluster_id} - using all data for return period calculation only.")
 
@@ -993,9 +1064,9 @@ def run_LSP (countries, min_magnitude, use_split):
                 continue
             analysis_data.loc[0,'delta'] = 0
             analysis_data['delta'] = analysis_data['Day_Number'] - analysis_data['Day_Number'].shift(1)
-            avg_gap = analysis_data['delta'].mean()
+            #avg_gap = analysis_data['delta'].mean()
             # Sort the data by time from low to high
-            cluster_data = analysis_data.sort_values(by='Day_Number').reset_index(drop=True)
+            cluster_data = analysis_data.sort_values(by='Day_Number', kind='mergesort').reset_index(drop=True)
             
             x = cluster_data['Day_Number'].values - cluster_data['Day_Number'].values[0]
             y = cluster_data['mag'].to_numpy()
@@ -1021,17 +1092,29 @@ def run_LSP (countries, min_magnitude, use_split):
             try:
                 # Lomb-Scargle analysis
                 ls = LombScargle(x_normalise, y)
-                frequencies, power = ls.autopower(minimum_frequency=0.01, maximum_frequency=N)
-                
+                #frequencies, power = ls.autopower(minimum_frequency=0.01, maximum_frequency=N)
+                frequencies, power = ls.autopower(minimum_frequency=0.01, maximum_frequency=N, samples_per_peak=10)
                 
                 cluster_data['delta'] = cluster_data['Day_Number'] - cluster_data['Day_Number'].shift(1)
                 #avg_gap = cluster_data['delta'].mean()
                 
                 # Dynamic bounds based on avg_gap
 
-                freq_range_min_ls = frequencies[int(len(frequencies) * 0.40)]
-                freq_range_max_ls = frequencies[int(len(frequencies) * 0.99)]
+                # freq_range_min_ls = frequencies[int(len(frequencies) * 0.40)]
+                # freq_range_max_ls = frequencies[int(len(frequencies) * 0.99)]
                 
+                # Period search window, converted to the normalised frequency axis.
+               # A frequency f on that axis corresponds to a period of
+               # num_day / (0.4999 * f) days, so the two bounds below keep only
+               # the periods that the record can actually resolve.
+                _gaps = np.diff(np.sort(x.astype(float)))
+                _gaps = _gaps[_gaps > 0]
+                P_MIN_DAYS = 2.0 * np.median(_gaps) if _gaps.size else 1.0
+                P_MAX_DAYS = num_day / 3.0
+ 
+                freq_range_min_ls = num_day / (0.4999 * P_MAX_DAYS)
+                freq_range_max_ls = num_day / (0.4999 * P_MIN_DAYS)
+               
                 # Filter frequency and power arrays within the desired range
                 filtered_indices = (frequencies >= freq_range_min_ls) & (frequencies <= freq_range_max_ls)
                 filtered_frequency = frequencies[filtered_indices]
@@ -1086,10 +1169,10 @@ def run_LSP (countries, min_magnitude, use_split):
                 
                 # Store peak data
                 #nomes = (best_freq_lomb/N)*100
-                return_P_nomes = (num_day / best_freq_lomb) / 365
+                return_P_nomes = (num_day / best_freq_lomb / 0.4999) / 365.25
     # =============================================================================
     #             if nomes > 0:
-    #                 return_P_nomes = (num_day / best_freq_lomb) / 365
+    #                 return_P_nomes = (num_day / best_freq_lomb) / 365.25
     #             else:
     #                 return_P_nomes = None
     #                 
@@ -1107,14 +1190,14 @@ def run_LSP (countries, min_magnitude, use_split):
                 }
                 
                 if return_P_nomes is not None:
-                    period_days = return_P_nomes * 365.0
+                    period_days = return_P_nomes * 365.25
                 else:
                     period_days = 0
                     
                 # Only run predictions if data was split
                 if use_split and period_days > 0.0:
                     try:
-                        prediction_results, prediction_summary = predict_and_error(
+                        prediction_results, prediction_summary = predict_and_error_nfftlsp(
                             smooth_data1_80, smooth_data1_20, period_days
                         )
                         prediction_results["country"] = country
@@ -1124,7 +1207,7 @@ def run_LSP (countries, min_magnitude, use_split):
                         all_prediction_results.append(prediction_results)
                         all_prediction_summaries.append(prediction_summary)
                     except Exception as e:
-                        print(f"Error during prediction for {country} cluster {cluster_id}: {e}")
+                        record_error("LSP validation", f"{country} cluster {cluster_id}", e)
                 elif not use_split:
                     print(f"  Skipping validation for {country} cluster {cluster_id} - using all data for return period calculation only.")
                 
@@ -1134,7 +1217,7 @@ def run_LSP (countries, min_magnitude, use_split):
                 print(f"Best frequency: {best_freq_lomb:.4f}, Period: {best_period:.2f} days, Power: {best_power:.4f}")
                 
             except Exception as e:
-                print(f"Error in Lomb-Scargle analysis for {country} Cluster {cluster_id}: {e}")
+                record_error("LSP analysis", f"{country} cluster {cluster_id}", e)
                 # Set num_records based on filtered data size before continuing
                 zero_peak_info['num_records'] = N
                 zero_peak_info["Number of the day"] = num_day
@@ -1337,7 +1420,7 @@ for min_magnitude in range(4,9): #loop while < the 2nd number i.e. (4,9)
             gap_analysis_improved[cluster_id] = {
                 'country': country,
                 'cluster_id': cluster_id,
-                   "return_P": round(mean_gap / 365, 3),
+                   "return_P": round(mean_gap / 365.25, 3),
                 'total_earthquakes': len(analysis_data),
                 'total_gaps': len(gaps),
                 'exact_mode': mode_result.mode[0],
@@ -1373,7 +1456,7 @@ for min_magnitude in range(4,9): #loop while < the 2nd number i.e. (4,9)
                             prediction_summary["cluster_id"] = cluster_id
                             all_prediction_summaries.append(prediction_summary)
                 except Exception as e:
-                    print(f"Error during statistics prediction for {country} cluster {cluster_id}: {e}")
+                    record_error("statistics validation", f"{country} cluster {cluster_id}", e)
     
         # Create cluster mapping from ALL clusters in gap_analysis_improved (includes empty records)
         all_cluster_ids = sorted(gap_analysis_improved.keys())
@@ -1430,5 +1513,5 @@ for min_magnitude in range(4,9): #loop while < the 2nd number i.e. (4,9)
 
     run_NFFT(countries, min_magnitude, use_split)
     run_LSP(countries, min_magnitude, use_split)
-    
-    
+
+report_errors()
