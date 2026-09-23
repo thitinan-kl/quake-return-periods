@@ -1,0 +1,37 @@
+Tectonic plates,Methods,Return Period (Yrs)
+Tectonic plates,Methods,M 4+,M 5+,M 6+,M 7+,M 8+
+Pacific Plate,statistical mean,1.716,2.192,10.633,2.982,23.010
+Pacific Plate,statistical mode,0.645,0.712,6.719,0.670,9.579
+Pacific Plate,statistical median,1.123,1.574,9.159,1.999,17.228
+Pacific Plate,NFFT,6.189,7.767,12.116,11.289,
+Pacific Plate,LSP,12.347,11.116,14.883,15.851,
+North American Plate,statistical mean,1.734,2.955,8.652,17.173,22.482
+North American Plate,statistical mode,0.643,0.624,4.554,8.777,8.553
+North American Plate,statistical median,1.086,2.071,8.267,15.018,16.427
+North American Plate,NFFT,5.416,7.730,9.882,7.467,
+North American Plate,LSP,11.272,6.864,10.670,8.617,
+Eurasian Plate,statistical mean,1.392,1.684,7.129,24.673,14.744
+Eurasian Plate,statistical mode,0.630,0.636,1.527,8.325,4.408
+Eurasian Plate,statistical median,0.870,1.013,5.297,21.110,11.587
+Eurasian Plate,NFFT,5.362,6.914,10.596,4.876,
+Eurasian Plate,LSP,13.271,11.622,23.260,4.874,
+Caribbean Plate,statistical mean,1.841,3.020,3.270,10.981,
+Caribbean Plate,statistical mode,0.611,0.742,0.696,1.355,
+Caribbean Plate,statistical median,1.014,2.658,2.417,8.335,
+Caribbean Plate,NFFT,5.412,6.938,9.949,24.940,
+Caribbean Plate,LSP,11.466,9.248,11.962,23.352,
+South American Plate,statistical mean,2.223,4.022,4.153,20.441,14.224
+South American Plate,statistical mode,0.737,0.778,0.954,17.128,1.855
+South American Plate,statistical median,1.149,2.249,2.428,19.717,13.946
+South American Plate,NFFT,4.887,4.553,11.031,16.797,24.245
+South American Plate,LSP,8.918,10.002,13.327,18.281,36.300
+Indo-Australian Plate,statistical mean,1.413,1.666,7.152,7.846,31.554
+Indo-Australian Plate,statistical mode,0.609,0.663,4.146,1.651,23.180
+Indo-Australian Plate,statistical median,0.952,1.070,6.144,7.166,30.389
+Indo-Australian Plate,NFFT,6.640,7.252,9.974,11.921,25.177
+Indo-Australian Plate,LSP,10.462,7.785,17.462,12.644,23.388
+African Plate,statistical mean,2.449,4.451,13.782,,
+African Plate,statistical mode,0.626,0.781,4.332,,
+African Plate,statistical median,1.437,2.601,11.573,,
+African Plate,NFFT,7.048,7.690,,,
+African Plate,LSP,7.848,13.268,,,

@@ -31,7 +31,11 @@ assigned to mapped faults, so seismicity away from known faults is not discarded
 * Python **3.10 or later**
 * Any standard x86-64 personal computer. No GPU or specialised hardware is required.
 * Packages listed in [`requirements.txt`](requirements.txt):
-  `numpy`, `pandas`, `scipy`, `scikit-learn`, `matplotlib`, `astropy`, `nfft`, `requests`
+  `numpy`, `pandas`, `scipy`, `scikit-learn`, `matplotlib`, `astropy`, `nfft`, `requests`.
+  The versions there are **exact pins, not minimums**. The Lomb-Scargle power values
+  astropy returns shift slightly between major versions, which is enough to change which
+  of two close spectral peaks wins: under astropy 8 two of the published cells change.
+  astropy 6.1.7 and 7.2.2 both reproduce the article exactly; astropy 8 does not.
 * Disk: the full USGS catalogue is roughly 91 MB raw and 56 MB after preprocessing.
 * Runtime: a full run over the 28 countries and five magnitude thresholds takes on the order
   of a few hours on a laptop; the tutorial run over two countries takes a few minutes.
@@ -45,6 +49,55 @@ cd quake-return-periods
 python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
+## Quick test
+
+A single command checks that the installation works and that the pipeline
+reproduces a known result. It runs the real scripts on the bundled sample
+(Colombia), takes well under a minute, needs no network access and writes
+only inside a temporary folder:
+
+```bash
+cd code
+python quick_test.py
+```
+
+Expected output:
+
+```
+1. Checking the required packages
+   all present                                              pass
+
+2. Checking that the declustering sorts are stable
+   every sort_values uses kind='mergesort'                  pass
+
+3. Running the pipeline on the bundled sample (Colombia only)
+   both scripts finished                                    pass
+
+4. Comparing the result with the reference values
+   15 output files written               pass
+
+   method       cluster   expected   obtained   verdict
+   NFFT               1     11.658     11.658   pass
+   NFFT               2      3.882      3.882   pass
+   NFFT               3      2.090      2.090   pass
+   LSP                1     11.528     11.528   pass
+   LSP                2      3.901      3.901   pass
+   LSP                3     20.869     20.869   pass
+   statistics         1      1.877      1.877   pass
+   statistics         2      1.271      1.271   pass
+   statistics         3      1.467      1.467   pass
+All checks passed. The installation is working.
+```
+
+If the installed versions differ from the pins the test still runs and says so; it fails
+only if a package is missing, if a sort has lost its `kind='mergesort'`, or if a return
+period has moved.
+
+The script exits with status 0 when every check passes and 1 otherwise, so it
+can also be run in a continuous-integration job. A difference of a few per cent
+in the return periods can come from a different version of numpy, scipy or
+astropy; a large difference means something is wrong.
 
 ## Quick start
 
@@ -72,11 +125,14 @@ see [`docs/TUTORIAL.md`](docs/TUTORIAL.md).
 | `code/3_build_clusters_no_noise.py` | DBSCAN clustering per country (haversine, eps = 30 km, minPts = 4) and 180-day aftershock removal |
 | `code/4_statistics_NFFT_LSP.py` | NFFT and LSP return-period estimation, statistical baselines, optional 80/20 out-of-sample evaluation |
 | `code/countries.txt` | The 28 countries analysed, four per tectonic plate |
+| `code/quick_test.py` | Quick test: runs the pipeline on the bundled sample and checks the result |
 | `data/sample/` | Small preprocessed sample (Colombia and Japan) so the pipeline can be run without the full download |
+| `data/clustering/` | The 28 clustered catalogues behind the published tables — the output of step 3, shipped so step 4 can be reproduced exactly (see below) |
 | `results/` | Output files behind the tables and figures of the article |
 | `docs/USER_GUIDE.md` | Inputs, outputs, options and expected behaviour of every script |
 | `docs/TUTORIAL.md` | Step-by-step walk-through on the bundled sample |
 | `web/` | Interactive map client (plain JavaScript + Leaflet) |
+| `web/update-from-results.py` | Rewrites the client's numbers from `results/`; run `node web/build-data.js clusters-data.js .` afterwards |
 
 ## Key parameters
 
@@ -100,9 +156,20 @@ see [`docs/TUTORIAL.md`](docs/TUTORIAL.md).
 * `Table5-NFFT.xlsx`, `Table6-LSP.xlsx`, `Table7-Table8.xlsx` — the collated tables as published
 * Out-of-sample errors (Table 9) come from the same script with `use_split = True`
 
-To regenerate them, run the four scripts in order with the parameters above. Results are
-deterministic apart from the ordering of ties in DBSCAN, which does not affect the reported
-return periods.
+To regenerate them, run the four scripts in order with the parameters above.
+
+**Start from `data/clustering/` if you want the published numbers exactly.** Steps 1 to 3
+are reproducible in principle but not bit-for-bit across machines: DBSCAN assigns a border
+point that is reachable from two cores according to processing order, so a handful of
+events can land in a different cluster on a different operating system. The 28
+`clustered_earthquakes_<country>.csv` files in `data/clustering/` are the step-3 output the
+article was computed from; copying them to `code/Dataset/clustering/` and running step 4
+reproduces every cell of Tables 5 to 9.
+
+Step 4 itself is deterministic: every sort that decides which event is kept as a main shock
+uses a stable sort (`kind='mergesort'`), which matters because magnitudes are rounded to two
+decimals and a large share of events tie with another event inside the same 180-day window.
+`code/quick_test.py` checks this.
 
 ## Data
 
