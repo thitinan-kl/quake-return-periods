@@ -157,10 +157,32 @@ function getCss(v){return getComputedStyle(document.documentElement).getProperty
 const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
 const map = L.map('map',{preferCanvas:true,worldCopyJump:true,zoomControl:true,attributionControl:true})
   .setView([15,140],2);
-L.tileLayer(isDark
-  ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-  : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-  {attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:12}).addTo(map);
+/* ---------- basemap ----------
+   CARTO's raster basemaps have required an API key since 2026 and CARTO says
+   they are being retired, so the layer falls back to Esri's keyless grey canvas
+   the first time a tile fails to load. Readers therefore never see the
+   "API KEY REQUIRED" watermark, whatever happens to the key or the service.
+   Nothing else on the page depends on which basemap is in use. */
+const CARTO_KEY = 'cb1_3vfx_1_78d95e63de6b0512f35c07f2';
+function basemap(theme, maxZoom) {           // theme: 'dark' | 'light'
+  const carto = L.tileLayer(
+    'https://basemaps.cartocdn.com/rastertiles/' + theme + '_all/{z}/{x}/{y}{r}.png?key=' + CARTO_KEY,
+    {attribution: '&copy; OpenStreetMap contributors &copy; CARTO', maxZoom: maxZoom});
+  let swapped = false;
+  carto.on('tileerror', function () {
+    if (swapped) return;
+    swapped = true;
+    const esri = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_' +
+      (theme === 'dark' ? 'Dark' : 'Light') + '_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+      {attribution: '&copy; OpenStreetMap contributors &copy; Esri',
+       maxZoom: Math.min(maxZoom, 16)});
+    esri.addTo(map);
+    map.removeLayer(carto);
+  });
+  return carto;
+}
+basemap(isDark ? 'dark' : 'light', 12).addTo(map);
 
 /* ---------- state ---------- */
 const state = {country:'__ALL__', clusters:{1:true,2:true,3:true}, hulls:true, plates:true};
