@@ -1,6 +1,6 @@
 # QuakeReturnPeriods
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22954686.svg)](https://doi.org/10.5281/zenodo.22954686)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22954685.svg)](https://doi.org/10.5281/zenodo.22954685)
 
 Estimating earthquake return periods from irregularly sampled catalogues with the
 **Non-Uniform Fast Fourier Transform (NFFT)** and the **Lomb–Scargle Periodogram (LSP)**.
@@ -10,7 +10,7 @@ developed for a study on earthquake return periods (Heednacram, Kliangsuwan and 
 
 Live web application: **https://quake-return-periods.vercel.app/**
 
-Archived release (Zenodo): DOI [10.5281/zenodo.22954686](https://doi.org/10.5281/zenodo.22954686) · record <https://zenodo.org/records/22954686>
+Archived releases (Zenodo, all versions): DOI [10.5281/zenodo.22954685](https://doi.org/10.5281/zenodo.22954685) — resolves to the latest version
 
 ---
 
@@ -186,8 +186,7 @@ bundled sample.
 If you use this software, please cite the Zenodo archive (metadata also in
 [`CITATION.cff`](CITATION.cff)):
 
-- DOI: <https://doi.org/10.5281/zenodo.22954686>
-- Record: <https://zenodo.org/records/22954686>
+- DOI (all versions, resolves to the latest): <https://doi.org/10.5281/zenodo.22954685>
 
 ## License
 

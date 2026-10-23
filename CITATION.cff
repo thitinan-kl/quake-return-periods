@@ -14,5 +14,6 @@ authors:
 license: MIT
 repository-code: "https://github.com/thitinan-kl/quake-return-periods"
 url: "https://quake-return-periods.vercel.app/"
-version: "1.0.0"
-date-released: 2026-09-02
+version: "1.0.1"
+doi: "10.5281/zenodo.22954685"
+date-released: 2026-10-23

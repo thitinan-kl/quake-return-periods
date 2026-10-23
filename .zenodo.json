@@ -1,0 +1,22 @@
+{
+  "title": "QuakeReturnPeriods: NFFT and Lomb-Scargle estimation of earthquake return periods",
+  "upload_type": "software",
+  "description": "<p><strong>QuakeReturnPeriods</strong> estimates earthquake return periods directly from irregularly sampled earthquake catalogues using the Non-Uniform Fast Fourier Transform (NFFT) and the Lomb&ndash;Scargle Periodogram (LSP).</p>\n<p>Earthquakes do not occur on a uniform time grid. The classical FFT therefore needs binning or interpolation, and both distort the recurrence structure being measured. This pipeline applies the NFFT directly to raw event times and cross-checks the result with the LSP. Both methods are compared against statistical baselines (mean, mode and median) on a chronological 80/20 held-out split. Events are grouped spatially with DBSCAN rather than assigned to mapped faults, so the analysis does not depend on fault lines and seismicity away from known faults is kept.</p>\n<p>This release contains:</p>\n<ul>\n<li>A four-step Python pipeline: download of the USGS FDSN catalogue (1900&ndash;present, M &ge; 4.0), preprocessing and magnitude normalisation, DBSCAN clustering (haversine, eps = 30 km, minPts = 4) with 180-day declustering, and NFFT/LSP return-period estimation for magnitude thresholds M4+ to M8+ across 28 countries (four per tectonic plate).</li>\n<li>The 28 clustered catalogues and the result files behind the reported estimates, so the numbers can be reproduced exactly.</li>\n<li>A bundled sample (Colombia and Japan) and a quick test (<code>code/quick_test.py</code>) that checks the installation against reference values in under a minute, without network access.</li>\n<li>An interactive web map client built with plain JavaScript and Leaflet.</li>\n<li>A user guide and a step-by-step tutorial.</li>\n</ul>\n<p>Requirements: Python 3.10+, with package versions pinned in <code>requirements.txt</code>. No GPU is needed.</p>\n<p>Developed for a study on earthquake return periods.</p>\n<p>Source code: <a href=\"https://github.com/thitinan-kl/quake-return-periods\">https://github.com/thitinan-kl/quake-return-periods</a><br>Live web application: <a href=\"https://quake-return-periods.vercel.app/\">https://quake-return-periods.vercel.app/</a></p>",
+  "creators": [
+    {
+      "name": "Heednacram, Apichat",
+      "affiliation": "College of Computing, Prince of Songkla University, Phuket, Thailand"
+    },
+    {
+      "name": "Kliangsuwan, Thitinan",
+      "affiliation": "College of Computing, Prince of Songkla University, Phuket, Thailand"
+    },
+    {
+      "name": "Boonsat, Nititorn",
+      "affiliation": "College of Computing, Prince of Songkla University, Phuket, Thailand"
+    }
+  ],
+  "license": "MIT",
+  "access_right": "open",
+  "notes": "If you use this software, please cite it using the metadata in this record."
+}
