@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite the accompanying article."
+message: "If you use this software, please cite it using these metadata."
 title: "QuakeReturnPeriods: NFFT and Lomb-Scargle estimation of earthquake return periods"
 authors:
   - family-names: Heednacram

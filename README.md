@@ -5,10 +5,8 @@
 Estimating earthquake return periods from irregularly sampled catalogues with the
 **Non-Uniform Fast Fourier Transform (NFFT)** and the **Lomb–Scargle Periodogram (LSP)**.
 
-This repository contains the complete analysis pipeline and the interactive web client for
-the article *"Evaluating Earthquake Return Period Reliability Across Seismic Scales Using
-NFFT and LSP Algorithms"* (Heednacram, Kliangsuwan and Boonsat), submitted to
-*Computers & Geosciences*.
+This repository contains the complete analysis pipeline and the interactive web client
+developed for a study on earthquake return periods (Heednacram, Kliangsuwan and Boonsat).
 
 Live web application: **https://quake-return-periods.vercel.app/**
 
@@ -185,9 +183,8 @@ bundled sample.
 
 ## Citation
 
-If you use this software, please cite the accompanying article; see [`CITATION.cff`](CITATION.cff).
-
-To cite the software itself (v1.0.0), use the Zenodo archive:
+If you use this software, please cite the Zenodo archive (metadata also in
+[`CITATION.cff`](CITATION.cff)):
 
 - DOI: <https://doi.org/10.5281/zenodo.22954686>
 - Record: <https://zenodo.org/records/22954686>
