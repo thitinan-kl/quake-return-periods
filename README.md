@@ -42,6 +42,8 @@ assigned to mapped faults, so seismicity away from known faults is not discarded
 * Runtime: a full run over the 28 countries and five magnitude thresholds takes on the order
   of a few hours on a laptop; the tutorial run over two countries takes a few minutes.
 * The web client needs only a modern web browser — no build step, no package manager.
+* The robustness notebook (`code/robustness_tests.ipynb`) additionally needs Jupyter
+  (`pip install notebook`); it uses no packages beyond those in `requirements.txt`.
 
 ## Installation
 
@@ -128,9 +130,11 @@ see [`docs/TUTORIAL.md`](docs/TUTORIAL.md).
 | `code/4_statistics_NFFT_LSP.py` | NFFT and LSP return-period estimation, statistical baselines, optional 80/20 out-of-sample evaluation |
 | `code/countries.txt` | The 28 countries analysed, four per tectonic plate |
 | `code/quick_test.py` | Quick test: runs the pipeline on the bundled sample and checks the result |
+| `code/robustness_tests.ipynb` | Robustness tests: common-cluster out-of-sample evaluation, Gutenberg–Richter baseline, rate error, permutation tests, synthetic catalogues and the occurrence-based estimators (see below) |
 | `data/sample/` | Small preprocessed sample (Colombia and Japan) so the pipeline can be run without the full download |
 | `data/clustering/` | The 28 clustered catalogues behind the published tables — the output of step 3, shipped so step 4 can be reproduced exactly (see below) |
 | `results/` | Output files behind the tables and figures of the article |
+| `results/robustness/` | Inputs and outputs of `code/robustness_tests.ipynb` |
 | `docs/USER_GUIDE.md` | Inputs, outputs, options and expected behaviour of every script |
 | `docs/TUTORIAL.md` | Step-by-step walk-through on the bundled sample |
 | `web/` | Interactive map client (plain JavaScript + Leaflet) |
@@ -156,7 +160,8 @@ see [`docs/TUTORIAL.md`](docs/TUTORIAL.md).
 * `NFFT_M{4..8}.csv`, `LSP-M{4..8}.csv` — estimated return periods per country and cluster (Tables 5 and 6)
 * `statistics-M{4..8}.csv` — statistical mean / mode / median baselines
 * `Table5-NFFT.xlsx`, `Table6-LSP.xlsx`, `Table7-Table8.xlsx` — the collated tables as published
-* Out-of-sample errors (Table 9) come from the same script with `use_split = True`
+* Out-of-sample errors per forecast come from the same script with `use_split = True`;
+  Tables 9 to 14 are computed from them by `code/robustness_tests.ipynb` (next section)
 
 To regenerate them, run the four scripts in order with the parameters above.
 
@@ -166,12 +171,38 @@ point that is reachable from two cores according to processing order, so a handf
 events can land in a different cluster on a different operating system. The 28
 `clustered_earthquakes_<country>.csv` files in `data/clustering/` are the step-3 output the
 article was computed from; copying them to `code/Dataset/clustering/` and running step 4
-reproduces every cell of Tables 5 to 9.
+reproduces every cell of Tables 5 to 8 and the per-forecast errors behind Table 9.
 
 Step 4 itself is deterministic: every sort that decides which event is kept as a main shock
 uses a stable sort (`kind='mergesort'`), which matters because magnitudes are rounded to two
 decimals and a large share of events tie with another event inside the same 180-day window.
 `code/quick_test.py` checks this.
+
+## Robustness tests
+
+`code/robustness_tests.ipynb` reproduces the robustness analyses of the study. It imports the
+pipeline functions from `code/4_statistics_NFFT_LSP.py` unchanged, reads
+`data/clustering/`, and writes its results to `results/robustness/`:
+
+| Table | What it is | Output |
+|---|---|---|
+| 9 | Out-of-sample timing errors on the clusters on which every method makes a forecast, with a Gutenberg–Richter baseline and a control forecast (0.5 × mean) | `table9_common_clusters.csv`, `bootstrap_mae_difference.csv` |
+| 10 | Rate error \|log10(T / Tobs)\| on the same clusters | `table10_rate_error.csv` |
+| 11 | Permutation tests of the spectral peaks (999 permutations), Benjamini–Hochberg FDR, LSP false-alarm probability | `table11_permutation_summary.csv`, `permutation_B999.csv` |
+| 12 | Synthetic catalogues: what the magnitude-based estimators recover | `synthetic_magnitude_modulation.csv`, `synthetic_occurrence.csv` |
+| 13 | Synthetic catalogues: occurrence-based estimators (Schuster spectrum via the NFFT, LSP of event counts) | `occ_synthetic.csv` |
+| 14 | Out-of-sample errors of the occurrence-based estimators | `table14_occurrence_oos.csv`, `table14_bootstrap.csv`, `occ_eval_B199.csv` |
+
+```bash
+cd code
+jupyter notebook robustness_tests.ipynb      # or: jupyter nbconvert --to notebook --execute robustness_tests.ipynb
+```
+
+A full run takes about two minutes, because the two slow null tests are loaded from
+`results/robustness/permutation_B999.csv` and `occ_eval_B199.csv`. Set
+`RECOMPUTE_PERMUTATIONS = True` (about 12 minutes) and `RECOMPUTE_OCC_NULL = True` (about
+4 minutes) in the notebook to recompute them. The first section of the notebook checks that
+its estimator code reproduces every cell of Tables 5 and 6.
 
 ## Data
 
